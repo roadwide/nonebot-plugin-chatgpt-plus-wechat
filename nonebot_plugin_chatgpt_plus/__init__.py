@@ -45,7 +45,7 @@ __plugin_meta__ = PluginMetadata(
 清空会话/清空对话   清空所有会话（超级用户）
 刷新token   强制刷新token（超级用户）""",
         "author": "A-kirami",
-        "version": "0.8.0",
+        "version": "0.8.1",
     },
 )
 __plugin_settings__ = {
@@ -105,7 +105,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
     played_name = config.chatgpt_default_preset
     cvst = session[event]
     if cvst:
-        if not cvst['conversation_id']:
+        if not cvst['conversation_id'][-1]:
             has_title = False
     else:
         has_title = False
