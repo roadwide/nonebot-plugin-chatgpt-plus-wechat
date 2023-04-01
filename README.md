@@ -1,20 +1,21 @@
 <div align="center">
-  <a href="https://v2.nonebot.dev/store"><img src="https://github.com/A-kirami/nonebot-plugin-template/blob/resources/nbp_logo.png" width="180" height="180" alt="NoneBotPluginLogo"></a>
+  <a href="https://v2.nonebot.dev/store"><img src="https://raw.githubusercontent.com/A-kirami/nonebot-plugin-template/resources/nbp_logo.png" width="180" height="180" alt="NoneBotPluginLogo"></a>
   <br>
-  <p><img src="https://github.com/A-kirami/nonebot-plugin-template/blob/resources/NoneBotPlugin.svg" width="240" alt="NoneBotPluginText"></p>
+  <p><img src="https://raw.githubusercontent.com/A-kirami/nonebot-plugin-template/resources/NoneBotPlugin.svg" width="240" alt="NoneBotPluginText"></p>
 </div>
+
 
 <div align="center">
 
-# nonebot-plugin-chatgpt
+# nonebot-plugin-chatgpt-plus
 
 _✨ ChatGPT AI 对话 ✨_
 
 <a href="./LICENSE">
-    <img src="https://img.shields.io/github/license/A-kirami/nonebot-plugin-chatgpt.svg" alt="license">
+    <img src="https://img.shields.io/github/license/AkashiCoin/nonebot-plugin-chatgpt-plus.svg" alt="license">
 </a>
-<a href="https://pypi.python.org/pypi/nonebot-plugin-chatgpt">
-    <img src="https://img.shields.io/pypi/v/nonebot-plugin-chatgpt.svg" alt="pypi">
+<a href="https://pypi.python.org/pypi/nonebot-plugin-chatgpt-plus">
+    <img src="https://img.shields.io/pypi/v/nonebot-plugin-chatgpt-plus.svg" alt="pypi">
 </a>
 <img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="python">
 
