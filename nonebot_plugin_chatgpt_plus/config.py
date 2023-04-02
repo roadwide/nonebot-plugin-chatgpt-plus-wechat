@@ -12,6 +12,7 @@ class Config(BaseModel, extra=Extra.ignore):
     chatgpt_account: str = ""
     chatgpt_password: str = ""
     chatgpt_cd_time: int = 60
+    chatgpt_notice: bool = True
     chatgpt_proxies: Optional[str] = None
     chatgpt_refresh_interval: int = 30
     chatgpt_command: Union[str, List[str]] = ""

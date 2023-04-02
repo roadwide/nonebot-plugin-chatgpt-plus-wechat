@@ -14,7 +14,7 @@ from nonebot.typing import T_State
 
 from .chatgpt import Chatbot
 from .config import config
-from .utils import Session, cooldow_checker, create_matcher
+from .utils import Session, cooldow_checker, create_matcher, single_run_locker, lockers
 from .data import setting
 
 require("nonebot_plugin_apscheduler")
@@ -91,16 +91,13 @@ def check_purview(event: MessageEvent) -> bool:
     )
 
 
-@matcher.handle(parameterless=[cooldow_checker(config.chatgpt_cd_time)])
+@matcher.handle(parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()])
 async def ai_chat(event: MessageEvent, state: T_State) -> None:
+    lockers[event.user_id] = True
     message = _command_arg(state) or event.get_message()
     text = message.extract_plain_text().strip()
     if start := _command_start(state):
         text = text[len(start) :]
-    if event.get_message().extract_plain_text().strip().startswith("gpt4"):
-        chat_bot.model = "gpt-4"
-    else:
-        chat_bot.model = config.chatgpt_model
     has_title = True
     played_name = config.chatgpt_default_preset
     cvst = session[event]
@@ -114,6 +111,11 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
             if text.find(name) > -1:
                 played_name = name
     try:
+        if config.chatgpt_notice:
+            msg = "收到请求，等待响应..."
+            if not has_title:
+                msg += f"\n首次请求，人格设定: {played_name if played_name else '无'}"
+            await matcher.send(msg, reply_message=True)
         msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
         if (
             msg == "token失效，请重新设置token"
@@ -127,6 +129,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
         await matcher.finish(
             f"请求 ChatGPT 服务器时出现问题，请稍后再试\n错误信息: {error}", reply_message=True
         )
+    lockers[event.user_id] = False
     if config.chatgpt_image:
         if msg.count("```") % 2 != 0:
             msg += "\n```"

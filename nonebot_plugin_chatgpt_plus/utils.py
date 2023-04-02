@@ -52,6 +52,19 @@ def cooldow_checker(cd_time: int) -> Any:
 
     return Depends(check_cooldown)
 
+lockers = defaultdict(bool)
+def single_run_locker() -> Any:
+    async def check_running(
+        matcher: Matcher, event: MessageEvent
+    ) -> AsyncGenerator[None, None]:
+        lockers[event.user_id] = lockers[event.user_id]
+        if lockers[event.user_id]:
+            await matcher.finish(
+                f"我知道你很急，但你先别急", reply_message=True
+            )
+        yield
+
+    return Depends(check_running)
 
 def create_matcher(
     command: Union[str, List[str]],
