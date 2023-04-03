@@ -23,6 +23,8 @@ _✨ ChatGPT AI 对话 ✨_
 
 ## 📖 介绍
 
+> ⚠️ 本项目使用第三方API（API由项目作者维护），介意账号信息泄露请勿使用
+
 项目原项目为[https://github.com/A-kirami/nonebot-plugin-chatgpt](https://github.com/A-kirami/nonebot-plugin-chatgpt)，此项目核心为使用绕过Cloudflare的api
 
 免费、无限使用的ChatGPT，PLUS账号可使用ChatGPT4.0，绕过ChatGPT的Cloudflare盾来使用免费网页端ChatGPT
