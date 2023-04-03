@@ -283,28 +283,23 @@ class Chatbot:
                 f"刷新puid失败: <r>HTTP{response.status_code}</r> {response.text}"
             )
 
-    @run_sync
-    def login(self) -> None:
-        from OpenAIAuth.OpenAIAuth import OpenAIAuth
-        auth = OpenAIAuth(self.account, self.password, bool(self.proxies), self.proxies)  # type: ignore
-        try:
-            auth.begin()
-        except Exception as e:
-            if str(e) == "Captcha detected":
-                logger.error("不支持验证码, 请使用 session token")
-            raise e
-        if not auth.access_token:
-            logger.error("ChatGPT 登陆错误!")
-        self.authorization = auth.access_token
-        if auth.session_token:
-            self.session_token = auth.session_token
-        elif possible_tokens := auth.session.cookies.get(SESSION_TOKEN_KEY):
-            if len(possible_tokens) > 1:
-                self.session_token = possible_tokens[0]
+    async def login(self) -> None:
+        async with httpx.AsyncClient(
+            proxies=self.proxies,
+            timeout=self.timeout,
+        ) as client:
+            response = await client.post(
+                "https://chat.loli.vet/api/auth/login",
+                files={
+                    "username": self.account,
+                    "password": self.password
+                }
+            )
+            if response.status_code == 200:
+                session_token =  response.cookies.get(SESSION_TOKEN_KEY)
+                self.session_token = session_token
+                self.auto_auth = False
+                logger.opt(colors=True).info("ChatGPT 登录成功！")
+                await self.refresh_session()
             else:
-                try:
-                    self.session_token = possible_tokens
-                except Exception as e:
-                    logger.opt(exception=e).error("ChatGPT 登陆错误!")
-        else:
-            logger.error("ChatGPT 登陆错误!")
+                logger.error(f"ChatGPT 登陆错误! {response.text}")

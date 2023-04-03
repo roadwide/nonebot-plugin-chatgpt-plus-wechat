@@ -124,6 +124,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
             chat_bot.session_token = config.chatgpt_session_token
             msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
     except Exception as e:
+        lockers[event.user_id] = False
         error = f"{type(e).__name__}: {e}"
         logger.opt(exception=e).error(f"ChatGPT request failed: {error}")
         await matcher.finish(
