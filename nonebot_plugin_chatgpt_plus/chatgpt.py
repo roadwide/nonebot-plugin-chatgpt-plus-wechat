@@ -113,7 +113,8 @@ class Chatbot:
             "role": "user",
             "content": {"content_type": "text", "parts": [prompt]},
         }]
-        messages.insert(0, self.get_played_info(self.played_name))
+        if self.played_name:
+            messages.insert(0, self.get_played_info(self.played_name))
         return {
             "action": "next",
             "messages": messages,
@@ -130,36 +131,49 @@ class Chatbot:
             cookies = {
                 PLUS_PUID_KEY:self.plus_puid,
             }
-            response = await client.post(
+            async with client.stream(
+                "POST",
                 urljoin(self.api_url, "backend-api/conversation"),
                 headers=self.headers,
                 json=self.get_payload(prompt),
                 cookies=cookies,
                 timeout=self.timeout,
-            )
-        if response.status_code == 429:
-            msg = ""
-            resp: dict = response.json()
-            if detail := resp.get('detail'):
-                if isinstance(detail, str):
-                    msg += "\n" + detail
-                elif seconds := detail.get('clears_in'):
-                    msg = f"\n请在 {convert_seconds(seconds)} 后重试"
-            return "请求过多，请放慢速度" + msg
-        if response.status_code == 401:
-            return "token失效，请重新设置token"
-        if response.is_error:
-            logger.opt(colors=True).error(
-                f"非预期的响应内容: <r>HTTP{response.status_code}</r> {escape_tag(response.text)}"
-            )
-            return f"ChatGPT 服务器返回了非预期的内容: HTTP{response.status_code}\n{escape_tag(response.text)}"
-        lines = response.text.splitlines()
-        data = lines[-4][6:]
-        response = json.loads(data)
-        self.parent_id = response["message"]["id"]
-        self.conversation_id = response["conversation_id"]
-        return response["message"]["content"]["parts"][0]
-    
+            ) as response:
+                if response.status_code == 429:
+                    msg = ""
+                    resp: dict = response.json()
+                    if detail := resp.get('detail'):
+                        if isinstance(detail, str):
+                            msg += "\n" + detail
+                        elif seconds := detail.get('clears_in'):
+                            msg = f"\n请在 {convert_seconds(seconds)} 后重试"
+                    return "请求过多，请放慢速度" + msg
+                if response.status_code == 401:
+                    return "token失效，请重新设置token"
+                if response.is_error:
+                    logger.opt(colors=True).error(
+                        f"非预期的响应内容: <r>HTTP{response.status_code}</r> {escape_tag(response.text)}"
+                    )
+                    return f"ChatGPT 服务器返回了非预期的内容: HTTP{response.status_code}\n{escape_tag(response.text)}"
+                data_list = []
+                async for line in response.aiter_lines():
+                    if line.startswith("data:"):
+                        data = line[6:]
+                        if data.startswith("{"):
+                            try:
+                                data_list.append(json.loads(data))
+                            except Exception as e:
+                                logger.warning(f"ChatGPT数据解析未知错误：{e}: {data}")
+                if not data_list:
+                    return "ChatGPT 服务器未返回任何内容:"
+                idx = -1
+                while data_list[idx]["error"]:
+                    idx -= 1
+                response = data_list[idx]
+                self.parent_id = response["message"]["id"]
+                self.conversation_id = response["conversation_id"]
+                return response["message"]["content"]["parts"][0]
+
     async def edit_title(self, title: str) -> bool:
         cookies = {
             SESSION_TOKEN_KEY: self.session_token,
