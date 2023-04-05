@@ -113,7 +113,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
     else:
         has_title = False
     if not has_title:
-        for name in chat_bot.presets:
+        for name in chat_bot.presets.keys():
             if text.find(name) > -1:
                 played_name = name
     try:

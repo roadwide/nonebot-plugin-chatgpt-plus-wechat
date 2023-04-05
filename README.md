@@ -117,7 +117,7 @@ _✨ ChatGPT AI 对话 ✨_
 
 ## 🎉 使用
 
-默认配置下，@机器人加任意文本即可。如果首次请求，加入人格名称可使用人格配置。
+默认配置下，@机器人加任意文本即可。如果首次请求，文本中加入人格名称可使用人格配置。
 
 如果需要修改插件的触发方式，自定义 `CHATGPT_COMMAND` 和 `CHATGPT_TO_ME` 配置项即可。
 
@@ -143,6 +143,6 @@ _✨ ChatGPT AI 对话 ✨_
 
 感谢以下开发者对该项目做出的贡献：
 
-<a href="https://github.com/A-kirami/nonebot-plugin-chatgpt/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=A-kirami/nonebot-plugin-chatgpt" />
+<a href="https://github.com/AkashiCoin/nonebot-plugin-chatgpt-plus/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=AkashiCoin/nonebot-plugin-chatgpt-plus" />
 </a>
