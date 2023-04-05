@@ -68,7 +68,7 @@ chat_bot = Chatbot(
     password=config.chatgpt_password,
     api=config.chatgpt_api,
     proxies=config.chatgpt_proxies,
-    preset=config.chatgpt_preset,
+    presets=setting.presets,
     timeout=config.chatgpt_timeout,
 )
 
@@ -107,7 +107,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
     else:
         has_title = False
     if not has_title:
-        for name in chat_bot.preset:
+        for name in chat_bot.presets:
             if text.find(name) > -1:
                 played_name = name
     try:
