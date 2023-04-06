@@ -141,7 +141,10 @@ class Chatbot:
             ) as response:
                 if response.status_code == 429:
                     msg = ""
-                    resp: dict = response.json()
+                    buffer = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        buffer.extend(chunk)
+                    resp: dict = json.loads(buffer.decode())
                     if detail := resp.get('detail'):
                         if isinstance(detail, str):
                             msg += "\n" + detail
@@ -151,10 +154,14 @@ class Chatbot:
                 if response.status_code == 401:
                     return "token失效，请重新设置token"
                 if response.is_error:
+                    buffer = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        buffer.extend(chunk)
+                    resp_text = buffer.decode()
                     logger.opt(colors=True).error(
-                        f"非预期的响应内容: <r>HTTP{response.status_code}</r> {escape_tag(response.text)}"
+                        f"非预期的响应内容: <r>HTTP{response.status_code}</r> {escape_tag(resp_text)}"
                     )
-                    return f"ChatGPT 服务器返回了非预期的内容: HTTP{response.status_code}\n{escape_tag(response.text)}"
+                    return f"ChatGPT 服务器返回了非预期的内容: HTTP{response.status_code}\n{escape_tag(resp_text)}"
                 data_list = []
                 async for line in response.aiter_lines():
                     if line.startswith("data:"):
