@@ -1,5 +1,6 @@
-from collections import defaultdict, deque
 import json
+
+from collections import defaultdict, deque
 from pathlib import Path
 from typing import (
     Any,
@@ -60,7 +61,7 @@ def single_run_locker() -> Any:
         lockers[event.user_id] = lockers[event.user_id]
         if lockers[event.user_id]:
             await matcher.finish(
-                f"我知道你很急，但你先别急", reply_message=True
+                "我知道你很急，但你先别急", reply_message=True
             )
         yield
 

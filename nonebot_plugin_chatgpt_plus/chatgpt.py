@@ -1,11 +1,11 @@
 import uuid
-from typing import Any, Dict, Optional
-from urllib.parse import urljoin
-
 import httpx
-from nonebot.log import logger
-from nonebot.utils import escape_tag, run_sync
+
+from typing import Any, Dict, Optional
 from typing_extensions import Self
+from urllib.parse import urljoin
+from nonebot.log import logger
+from nonebot.utils import escape_tag
 
 from .utils import convert_seconds
 
@@ -52,6 +52,8 @@ class Chatbot:
             self.auto_auth = True
         else:
             raise ValueError("至少需要配置 session_token 或者 account 和 password")
+        if self.api_url.startswith('https://chat.openai.com') and not self.plus_puid:
+            raise ValueError("使用官方API请配置puid")
 
     def __call__(
         self, conversation_id: Optional[str] = None, parent_id: Optional[str] = None, played_name: Optional[str] = None
@@ -82,7 +84,7 @@ class Chatbot:
         return {
             "id": self.id,
             "author": {
-                "role": "system",
+                "role": "tool",
                 "name": name,
                 "metadata": {}
             },
@@ -141,10 +143,10 @@ class Chatbot:
             ) as response:
                 if response.status_code == 429:
                     msg = ""
-                    buffer = bytearray()
+                    _buffer = bytearray()
                     async for chunk in response.aiter_bytes():
-                        buffer.extend(chunk)
-                    resp: dict = json.loads(buffer.decode())
+                        _buffer.extend(chunk)
+                    resp: dict = json.loads(_buffer.decode())
                     if detail := resp.get('detail'):
                         if isinstance(detail, str):
                             msg += "\n" + detail
@@ -154,10 +156,10 @@ class Chatbot:
                 if response.status_code == 401:
                     return "token失效，请重新设置token"
                 if response.is_error:
-                    buffer = bytearray()
+                    _buffer = bytearray()
                     async for chunk in response.aiter_bytes():
-                        buffer.extend(chunk)
-                    resp_text = buffer.decode()
+                        _buffer.extend(chunk)
+                    resp_text = _buffer.decode()
                     logger.opt(colors=True).error(
                         f"非预期的响应内容: <r>HTTP{response.status_code}</r> {escape_tag(resp_text)}"
                     )
