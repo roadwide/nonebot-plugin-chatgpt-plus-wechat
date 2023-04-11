@@ -129,6 +129,17 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
         ):
             chat_bot.session_token = config.chatgpt_session_token
             msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
+        elif (
+            msg == "会话不存在"
+        ):
+            if config.chatgpt_auto_refresh:
+                has_title = False
+                cvst['conversation_id'].append(None)
+                cvst['parent_id'].append(chat_bot.id)
+                await matcher.send("会话不存在，已自动刷新对话，等待响应...", reply_message=True)
+                msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
+            else:
+                msg += ",请刷新会话"
     except Exception as e:
         lockers[event.user_id] = False
         error = f"{type(e).__name__}: {e}"

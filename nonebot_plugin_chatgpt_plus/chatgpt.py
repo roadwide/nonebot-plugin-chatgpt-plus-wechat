@@ -155,6 +155,10 @@ class Chatbot:
                     return "请求过多，请放慢速度" + msg
                 if response.status_code == 401:
                     return "token失效，请重新设置token"
+                if response.status_code == 403:
+                    return "API错误，请联系开发者修复"
+                if response.status_code == 404:
+                    return "会话不存在"
                 if response.is_error:
                     _buffer = bytearray()
                     async for chunk in response.aiter_bytes():
