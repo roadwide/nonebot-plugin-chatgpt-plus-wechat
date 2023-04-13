@@ -327,7 +327,8 @@ async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()
             await set_preset.finish(
                 f"请求 ChatGPT 服务器时出现问题，请稍后再试\n错误信息: {error}", reply_message=True
             )
-        await set_preset.finish(msg, reply_message=True)
+        await set_preset.send(msg, reply_message=True)
+        await chat_bot(**session[event]).edit_title(session.id(event=event))
 
 query = on_command("查看人格", aliases={"查询人格"}, block=True, rule=to_me(), permission=SUPERUSER, priority=1)
 
