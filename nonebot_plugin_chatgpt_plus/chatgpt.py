@@ -15,7 +15,6 @@ except ModuleNotFoundError:
     import json
 
 SESSION_TOKEN_KEY = "__Secure-next-auth.session-token"
-PLUS_PUID_KEY = "_puid"
 CF_CLEARANCE_KEY = "cf_clearance"
 
 class Chatbot:
@@ -23,7 +22,6 @@ class Chatbot:
         self,
         *,
         token: str = "",
-        puid: str = "",
         model: str = "text-davinci-002-render-sha",
         account: str = "",
         password: str = "",
@@ -33,7 +31,6 @@ class Chatbot:
         timeout: int = 10,
     ) -> None:
         self.session_token = token
-        self.plus_puid = puid
         self.model = model
         self.account = account
         self.password = password
@@ -52,8 +49,8 @@ class Chatbot:
             self.auto_auth = True
         else:
             raise ValueError("至少需要配置 session_token 或者 account 和 password")
-        if self.api_url.startswith('https://chat.openai.com') and not self.plus_puid:
-            raise ValueError("使用官方API请配置puid")
+        if self.api_url.startswith('https://chat.openai.com'):
+            raise ValueError("无法使用官方API，请使用第三方API")
 
     def __call__(
         self, conversation_id: Optional[str] = None, parent_id: Optional[str] = None, played_name: Optional[str] = None
@@ -129,16 +126,14 @@ class Chatbot:
     async def get_chat_response(self, prompt: str) -> str:
         if not self.authorization:
             await self.refresh_session()
+            if not self.authorization:
+                return "Token获取失败，请检查配置或API是否可用"
         async with httpx.AsyncClient(proxies=self.proxies) as client:
-            cookies = {
-                PLUS_PUID_KEY:self.plus_puid,
-            }
             async with client.stream(
                 "POST",
                 urljoin(self.api_url, "backend-api/conversation"),
                 headers=self.headers,
                 json=self.get_payload(prompt),
-                cookies=cookies,
                 timeout=self.timeout,
             ) as response:
                 if response.status_code == 429:
@@ -165,9 +160,9 @@ class Chatbot:
                         _buffer.extend(chunk)
                     resp_text = _buffer.decode()
                     logger.opt(colors=True).error(
-                        f"非预期的响应内容: <r>HTTP{response.status_code}</r> {escape_tag(resp_text)}"
+                        f"非预期的响应内容: <r>HTTP{response.status_code}</r> {resp_text}"
                     )
-                    return f"ChatGPT 服务器返回了非预期的内容: HTTP{response.status_code}\n{escape_tag(resp_text)}"
+                    return f"ChatGPT 服务器返回了非预期的内容: HTTP{response.status_code}\n{resp_text[:256]}"
                 data_list = []
                 async for line in response.aiter_lines():
                     if line.startswith("data:"):
@@ -178,7 +173,7 @@ class Chatbot:
                             except Exception as e:
                                 logger.warning(f"ChatGPT数据解析未知错误：{e}: {data}")
                 if not data_list:
-                    return "ChatGPT 服务器未返回任何内容:"
+                    return "ChatGPT 服务器未返回任何内容"
                 idx = -1
                 while data_list[idx]["error"]:
                     idx -= 1
@@ -190,8 +185,6 @@ class Chatbot:
     async def edit_title(self, title: str) -> bool:
         cookies = {
             SESSION_TOKEN_KEY: self.session_token,
-            PLUS_PUID_KEY:self.plus_puid,
-            CF_CLEARANCE_KEY: "cf_clearance"
         }
         async with httpx.AsyncClient(
             cookies=cookies,
@@ -219,13 +212,10 @@ class Chatbot:
                 f"编辑标题失败: <r>HTTP{response.status_code}</r> {response.text}"
             )
             return f"编辑标题失败，{e}"
-        
 
     async def gen_title(self) -> str:
         cookies = {
             SESSION_TOKEN_KEY: self.session_token,
-            PLUS_PUID_KEY:self.plus_puid,
-            CF_CLEARANCE_KEY: "cf_clearance"
         }
         async with httpx.AsyncClient(
             cookies=cookies,
@@ -253,15 +243,13 @@ class Chatbot:
                 f"生成标题失败: <r>HTTP{response.status_code}</r> {response.text}"
             )
             return f"生成标题失败，{e}"
-        
+
     async def refresh_session(self) -> None:
         if self.auto_auth:
             await self.login()
         else:
             cookies = {
                 SESSION_TOKEN_KEY: self.session_token,
-                PLUS_PUID_KEY:self.plus_puid,
-                CF_CLEARANCE_KEY: "cf_clearance"
             }
             async with httpx.AsyncClient(
                 cookies=cookies,
@@ -284,62 +272,23 @@ class Chatbot:
                     f"刷新会话失败: <r>HTTP{response.status_code}</r> {response.text}"
                 )
 
-
-    async def refresh_session_puid(self) -> None:
-        cookies = {
-            PLUS_PUID_KEY:self.plus_puid
-        }
+    async def login(self) -> None:
         async with httpx.AsyncClient(
-            cookies=cookies,
-            headers=self.headers,
             proxies=self.proxies,
             timeout=self.timeout,
         ) as client:
-            response = await client.get(
-                urljoin(self.api_url, "backend-api/models"),
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
-                },
+            response = await client.post(
+                "https://chat.loli.vet/api/auth/login",
+                files={
+                    "username": self.account,
+                    "password": self.password
+                }
             )
-        try:
-            self.plus_puid = (
-                response.cookies.get(PLUS_PUID_KEY) or self.plus_puid
-            )
-        except Exception as e:
-            logger.opt(colors=True, exception=e).error(
-                f"刷新puid失败: <r>HTTP{response.status_code}</r> {response.text}"
-            )
-
-    async def login(self) -> None:
-        if self.plus_puid:
-            try:
-                from OpenAIAuth import Authenticator
-                auth = Authenticator(email_address=self.account, password=self.password, puid=self.plus_puid, proxy=self.proxies)
-                auth.begin()
-                cookies = auth.session.cookies
-                self.session_token = cookies.get(SESSION_TOKEN_KEY)
+            if response.status_code == 200:
+                session_token =  response.cookies.get(SESSION_TOKEN_KEY)
+                self.session_token = session_token
                 self.auto_auth = False
                 logger.opt(colors=True).info("ChatGPT 登录成功！")
                 await self.refresh_session()
-            except Exception as e:
-                logger.error(f"ChatGPT 登陆错误!  {e}")
-        else:
-            async with httpx.AsyncClient(
-                proxies=self.proxies,
-                timeout=self.timeout,
-            ) as client:
-                response = await client.post(
-                    "https://chat.loli.vet/api/auth/login",
-                    files={
-                        "username": self.account,
-                        "password": self.password
-                    }
-                )
-                if response.status_code == 200:
-                    session_token =  response.cookies.get(SESSION_TOKEN_KEY)
-                    self.session_token = session_token
-                    self.auto_auth = False
-                    logger.opt(colors=True).info("ChatGPT 登录成功！")
-                    await self.refresh_session()
-                else:
-                    logger.error(f"ChatGPT 登陆错误! {response.text}")
+            else:
+                logger.error(f"ChatGPT 登陆错误! {response.text}")

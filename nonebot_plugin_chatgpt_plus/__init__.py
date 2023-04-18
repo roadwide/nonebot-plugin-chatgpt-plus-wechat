@@ -32,10 +32,7 @@ __zx_plugin_name__ = "ChatGPT-PLUS"
 __plugin_meta__ = PluginMetadata(
     name="ChatGPT-PLUS",
     description="ChatGPT PLUS插件",
-    usage=f"触发方式：{'@bot ' if config.chatgpt_to_me else ''}{config.chatgpt_command} 触发",
-    extra={
-        "unique_name": "chatgpt-plus",
-        "example": """
+    usage=f"""触发方式：{'@bot ' if config.chatgpt_to_me else ''}{config.chatgpt_command} 触发
 刷新会话/刷新对话	重置会话记录，开始新的对话
 导出会话/导出对话	导出当前会话记录
 导入会话/导入对话 + 会话ID + 父消息ID(可选)	将会话记录导入，这会替换当前的会话
@@ -44,10 +41,14 @@ __plugin_meta__ = PluginMetadata(
 切换会话/切换对话 + 会话名称	切换到指定的会话
 回滚会话/回滚对话	返回到之前的会话，输入数字可以返回多个会话，但不可以超过最大支持数量
 人格设定/设置人格 + 名称 使用人格预设
+查看人格/查询人格   查看已有的人格预设列表
 清空会话/清空对话   清空所有会话（超级用户）
-查看人格/查询人格   查看已有的人格预设（超级用户）
+查看人格/查询人格 + 名称   查看已有的人格预设（超级用户）
 人格设定/设置人格 + 名称 + 人格信息 编辑人格信息（超级用户）
 刷新token   强制刷新token（超级用户）""",
+    extra={
+        "unique_name": "chatgpt-plus",
+        "example": """@bot 人格设定 香草""",
         "author": "A-kirami",
         "version": "0.8.1",
     },
@@ -66,7 +67,6 @@ __plugin_settings__ = {
 
 chat_bot = Chatbot(
     token=setting.token or config.chatgpt_session_token,
-    puid=setting.puid or config.chatgpt_puid,
     model=config.chatgpt_model,
     account=config.chatgpt_account,
     password=config.chatgpt_password,
@@ -258,14 +258,10 @@ refresh = on_command("刷新token", block=True, rule=to_me(), permission=SUPERUS
 async def refresh_session() -> None:
     await chat_bot.refresh_session()
     setting.token = chat_bot.session_token
-    if config.chatgpt_puid:
-        await chat_bot.refresh_session_puid()
-        setting.puid = chat_bot.plus_puid
     setting.save()
     session.save_sessions()
     logger.opt(colors=True).debug(
         f"\ntoken: {setting.token}"
-        f"\npuid: {setting.puid}"
     )
 
 clear = on_command("清空对话", aliases={"清空会话"}, block=True, rule=to_me(), permission=SUPERUSER, priority=1)
@@ -330,17 +326,19 @@ async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()
         await set_preset.send(msg, reply_message=True)
         await chat_bot(**session[event]).edit_title(session.id(event=event))
 
-query = on_command("查看人格", aliases={"查询人格"}, block=True, rule=to_me(), permission=SUPERUSER, priority=1)
+query = on_command("查看人格", aliases={"查询人格"}, block=True, rule=to_me(), priority=1)
 
 
 @query.handle()
-async def query_preset(event: MessageEvent, arg: Message = CommandArg()):
+async def query_preset(bot: Bot, event: MessageEvent, arg: Message = CommandArg()):
     preset = arg.extract_plain_text().strip()
     if not preset:
         msg = "人格如下：\n"
         msg += "、".join(setting.presets.keys())
         await query.finish(msg, reply_message=True)
     if setting.presets.get(preset):
+        if event.get_user_id() not in bot.config.superusers:
+            await query.finish("权限不足", reply_message=True)
         await query.finish(f"名称：{preset}\n人格设定：{setting.presets.get(preset)}", reply_message=True)
     else:
         await query.finish("人格设定不存在", reply_message=True)
