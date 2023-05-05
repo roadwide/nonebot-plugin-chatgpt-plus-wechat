@@ -80,6 +80,7 @@ _✨ ChatGPT AI 对话 ✨_
 | 配置项 | 必填 | 默认值 | 说明 |
 |:-----:|:----:|:----:|:----:|
 | CHATGPT_SESSION_TOKEN | 否 | 空字符串 | ChatGPT 的 session_token，如配置则优先使用 |
+| CHATGPT_ACCESS_TOKEN | 否 | 空字符串 | ChatGPT 的 access_token，如配置则优先使用 |
 | CHATGPT_MODEL | 否 | 空字符串 | 模型，免费账号只有一个，PLUS账号可使用`gpt-4` |
 | CHATGPT_ACCOUNT | 否 | 空字符串 | ChatGPT 登陆邮箱，未配置则使用 session_token |
 | CHATGPT_PASSWORD | 否 | 空字符串 | ChatGPT 登陆密码，未配置则使用 session_token |
