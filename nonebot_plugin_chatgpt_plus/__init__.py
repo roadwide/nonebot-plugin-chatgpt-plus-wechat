@@ -50,7 +50,7 @@ __plugin_meta__ = PluginMetadata(
         "unique_name": "chatgpt-plus",
         "example": """@bot 人格设定 香草""",
         "author": "A-kirami",
-        "version": "0.8.6",
+        "version": "0.8.7",
     },
 )
 __plugin_settings__ = {
@@ -75,6 +75,8 @@ chat_bot = Chatbot(
     proxies=config.chatgpt_proxies,
     presets=setting.presets,
     timeout=config.chatgpt_timeout,
+    metadata=config.chatgpt_metadata,
+    auto_continue=config.chatgpt_auto_continue,
 )
 
 matcher = create_matcher(
@@ -99,7 +101,7 @@ def check_purview(event: MessageEvent) -> bool:
 @matcher.handle(
     parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()]
 )
-async def ai_chat(event: MessageEvent, state: T_State) -> None:
+async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
     lockers[event.user_id] = True
     message = _command_arg(state) or event.get_message()
     text = message.extract_plain_text().strip()
@@ -110,6 +112,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
     if not chat_bot.presets.get(played_name):
         played_name = ""
     cvst = session[event]
+    model = None
     if cvst:
         if not cvst["conversation_id"][-1]:
             has_title = False
@@ -120,18 +123,22 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
             if text.find(name) > -1:
                 played_name = name
     try:
+        msg_id = ""
         if config.chatgpt_notice:
             msg = "收到请求，等待响应..."
             if not has_title:
                 msg += f"\n首次请求，人格设定: {played_name if played_name else '无'}"
-            await matcher.send(msg, reply_message=True)
-        msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
+            msg_id = await matcher.send(msg, reply_message=True)
+            msg_id = msg_id.get("message_id")
+        msg = await chat_bot(
+            **cvst, played_name=played_name, model=model
+        ).get_chat_response(text)
         if (
             msg == "token失效，请重新设置token"
             and chat_bot.session_token != config.chatgpt_session_token
         ):
             chat_bot.session_token = config.chatgpt_session_token
-            msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(
+            msg = await chat_bot(**cvst, played_name=played_name, model=model).get_chat_response(
                 text
             )
         elif msg == "会话不存在":
@@ -140,7 +147,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
                 cvst["conversation_id"].append(None)
                 cvst["parent_id"].append(chat_bot.id)
                 await matcher.send("会话不存在，已自动刷新对话，等待响应...", reply_message=True)
-                msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(
+                msg = await chat_bot(**cvst, played_name=played_name, model=model).get_chat_response(
                     text
                 )
             else:
@@ -153,6 +160,8 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
         )
     finally:
         lockers[event.user_id] = False
+        if msg_id:
+            await bot.delete_msg(message_id=msg_id)
     if config.chatgpt_image:
         if msg.count("```") % 2 != 0:
             msg += "\n```"
