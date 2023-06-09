@@ -96,7 +96,9 @@ def check_purview(event: MessageEvent) -> bool:
     )
 
 
-@matcher.handle(parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()])
+@matcher.handle(
+    parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()]
+)
 async def ai_chat(event: MessageEvent, state: T_State) -> None:
     lockers[event.user_id] = True
     message = _command_arg(state) or event.get_message()
@@ -109,7 +111,7 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
         played_name = ""
     cvst = session[event]
     if cvst:
-        if not cvst['conversation_id'][-1]:
+        if not cvst["conversation_id"][-1]:
             has_title = False
     else:
         has_title = False
@@ -129,16 +131,18 @@ async def ai_chat(event: MessageEvent, state: T_State) -> None:
             and chat_bot.session_token != config.chatgpt_session_token
         ):
             chat_bot.session_token = config.chatgpt_session_token
-            msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
-        elif (
-            msg == "会话不存在"
-        ):
+            msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(
+                text
+            )
+        elif msg == "会话不存在":
             if config.chatgpt_auto_refresh:
                 has_title = False
-                cvst['conversation_id'].append(None)
-                cvst['parent_id'].append(chat_bot.id)
+                cvst["conversation_id"].append(None)
+                cvst["parent_id"].append(chat_bot.id)
                 await matcher.send("会话不存在，已自动刷新对话，等待响应...", reply_message=True)
-                msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(text)
+                msg = await chat_bot(**cvst, played_name=played_name).get_chat_response(
+                    text
+                )
             else:
                 msg += ",请刷新会话"
     except Exception as e:
@@ -168,8 +172,8 @@ refresh = on_command("刷新对话", aliases={"刷新会话"}, block=True, rule=
 async def refresh_conversation(event: MessageEvent) -> None:
     if not check_purview(event):
         await import_.finish("当前为公共会话模式, 仅支持群管理操作")
-    session[event]['conversation_id'].append(None)
-    session[event]['parent_id'].append(chat_bot.id)
+    session[event]["conversation_id"].append(None)
+    session[event]["parent_id"].append(chat_bot.id)
     await refresh.send("当前会话已刷新")
 
 
@@ -251,7 +255,10 @@ async def switch_conversation(event: MessageEvent, arg: Message = CommandArg()) 
     except KeyError:
         await switch.send(f"找不到会话: {name}", reply_message=True)
 
-refresh = on_command("刷新token", block=True, rule=to_me(), permission=SUPERUSER, priority=1)
+
+refresh = on_command(
+    "刷新token", block=True, rule=to_me(), permission=SUPERUSER, priority=1
+)
 
 
 @refresh.handle()
@@ -263,18 +270,20 @@ async def refresh_session() -> None:
     setting.access_token = chat_bot.authorization
     setting.save()
     session.save_sessions()
-    logger.opt(colors=True).debug(
-        f"\ntoken: {setting.token}"
-    )
+    logger.opt(colors=True).debug(f"\ntoken: {setting.token}")
 
-clear = on_command("清空对话", aliases={"清空会话"}, block=True, rule=to_me(), permission=SUPERUSER, priority=1)
+
+clear = on_command(
+    "清空对话", aliases={"清空会话"}, block=True, rule=to_me(), permission=SUPERUSER, priority=1
+)
 
 
 @clear.handle()
 async def clear_session() -> None:
     session.clear()
     session.save_sessions()
-    await clear.finish('已清除所有会话...', reply_message=True)
+    await clear.finish("已清除所有会话...", reply_message=True)
+
 
 rollback = on_command("回滚对话", aliases={"回滚会话"}, block=True, rule=to_me(), priority=1)
 
@@ -299,6 +308,7 @@ async def rollback_conversation(event: MessageEvent, arg: Message = CommandArg()
             f"请输入有效的数字，最大回滚数为{config.chatgpt_max_rollback}", reply_message=True
         )
 
+
 set_preset = on_command("人格设定", aliases={"设置人格"}, block=True, rule=to_me(), priority=1)
 
 
@@ -311,14 +321,16 @@ async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()
         if event.get_user_id() not in bot.config.superusers:
             await set_preset.finish("权限不足", reply_message=True)
         else:
-            setting.presets[args[0]] = '\n'.join(args[1:])
+            setting.presets[args[0]] = "\n".join(args[1:])
             await set_preset.finish("人格设定修改成功: " + args[0], reply_message=True)
     else:
         if session[event]:
-            if session[event]['conversation_id'][-1]:
+            if session[event]["conversation_id"][-1]:
                 await set_preset.finish("已存在会话，请刷新会话后设定。", reply_message=True)
         try:
-            msg = await chat_bot(**session[event], played_name=args[0]).get_chat_response(args[0])
+            msg = await chat_bot(
+                **session[event], played_name=args[0]
+            ).get_chat_response(args[0])
             session[event] = chat_bot.conversation_id, chat_bot.parent_id
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
@@ -328,6 +340,7 @@ async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()
             )
         await set_preset.send(msg, reply_message=True)
         await chat_bot(**session[event]).edit_title(session.id(event=event))
+
 
 query = on_command("查看人格", aliases={"查询人格"}, block=True, rule=to_me(), priority=1)
 
@@ -342,6 +355,8 @@ async def query_preset(bot: Bot, event: MessageEvent, arg: Message = CommandArg(
     if setting.presets.get(preset):
         if event.get_user_id() not in bot.config.superusers:
             await query.finish("权限不足", reply_message=True)
-        await query.finish(f"名称：{preset}\n人格设定：{setting.presets.get(preset)}", reply_message=True)
+        await query.finish(
+            f"名称：{preset}\n人格设定：{setting.presets.get(preset)}", reply_message=True
+        )
     else:
         await query.finish("人格设定不存在", reply_message=True)
