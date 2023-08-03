@@ -205,7 +205,7 @@ class Chatbot:
                     if not data_list:
                         return "ChatGPT 服务器未返回任何内容"
                     idx = -1
-                    while data_list[idx]["error"]:
+                    while data_list[idx].get("error") or data_list[idx].get("is_completion"):
                         idx -= 1
                     response = data_list[idx]
                 self.parent_id = response["message"]["id"]
