@@ -50,7 +50,7 @@ __plugin_meta__ = PluginMetadata(
         "unique_name": "chatgpt-plus",
         "example": """@bot 人格设定 香草""",
         "author": "A-kirami",
-        "version": "0.8.7",
+        "version": "0.8.8",
     },
 )
 __plugin_settings__ = {
