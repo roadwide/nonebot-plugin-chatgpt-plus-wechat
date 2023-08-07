@@ -96,7 +96,7 @@ class Chatbot:
     def get_played_info(self, name: str) -> Dict[str, Any]:
         return {
             "id": self.id,
-            "author": {"role": "tool", "name": name, "metadata": {}},
+            "author": {"role": "system", "name": name, "metadata": {}},
             "content": {
                 "content_type": "text",
                 "parts": [
