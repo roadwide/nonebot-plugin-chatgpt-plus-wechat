@@ -112,7 +112,23 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
     if not chat_bot.presets.get(played_name):
         played_name = ""
     cvst = session[event]
-    model = None
+    cmd = event.get_message().extract_plain_text().strip()
+    if cmd.startswith("gpt4m"):
+        model = "gpt-4-magic-create"
+    elif cmd.startswith("gpt4c"):
+        model = "gpt-4-code-interpreter"
+    elif cmd.startswith("gpt4d"):
+        model = "gpt-4-dalle"
+    elif cmd.startswith("gpt4g"):
+        model = "gpt-4-gizmo"
+    elif cmd.startswith("gpt4b"):
+        model = "gpt-4-browsing"
+    elif cmd.startswith("gpt4"):
+        model = "gpt-4"
+    elif cmd.startswith("gpt3"):
+        model = "text-davinci-002-render-sha"
+    else:
+        model = config.chatgpt_model
     if cvst:
         if not cvst["conversation_id"][-1]:
             has_title = False
@@ -161,7 +177,14 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
     finally:
         lockers[event.user_id] = False
         if msg_id:
-            await bot.delete_msg(message_id=msg_id)
+            try:
+                await bot.delete_msg(message_id=msg_id)
+            except Exception as e:
+                pass
+    images: list = []
+    if isinstance(msg, dict):
+        images = msg["images"]
+        msg = msg["message"]
     if config.chatgpt_image:
         if msg.count("```") % 2 != 0:
             msg += "\n```"
@@ -172,6 +195,18 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
     if not has_title:
         await chat_bot(**session[event]).edit_title(session.id(event=event))
         session.save_sessions()
+    if images:
+        await send_images(matcher, images)
+
+
+async def send_images(matcher, images: list[str]):
+    for image in images:
+        image_id = image.split("//")[1]
+        image_url = await chat_bot.get_image_url_with_id(image_id=image_id)
+        if image_url:
+            await matcher.send(MessageSegment.image(image_url))
+        else:
+            await matcher.send("图片获取失败!")
 
 
 refresh = on_command("刷新对话", aliases={"刷新会话"}, block=True, rule=to_me(), priority=1)

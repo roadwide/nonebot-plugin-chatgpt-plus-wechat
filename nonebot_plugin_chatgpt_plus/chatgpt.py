@@ -96,7 +96,7 @@ class Chatbot:
     def get_played_info(self, name: str) -> Dict[str, Any]:
         return {
             "id": self.id,
-            "author": {"role": "system", "name": name, "metadata": {}},
+            "author": {"role": "system", "name": name},
             "content": {
                 "content_type": "text",
                 "parts": [
@@ -114,6 +114,9 @@ class Chatbot:
                     else "",
                 ],
             },
+            "metadata": {
+                "timestamp_": "absolute"
+            },
             "weight": 100,
         }
 
@@ -123,6 +126,8 @@ class Chatbot:
             "conversation_id": self.conversation_id,
             "parent_message_id": self.parent_id,
             "model": self.model,
+            "history_and_training_disabled": False,
+            "arkose_token": None,
             "timezone_offset_min": -480,
         }
         if not is_continue:
@@ -132,6 +137,9 @@ class Chatbot:
                     "author": {"role": "user"},
                     "role": "user",
                     "content": {"content_type": "text", "parts": [prompt]},
+                    "metadata": {
+                        "timestamp_": "absolute"
+                    },
                 }
             ]
             if self.played_name:
@@ -218,12 +226,18 @@ class Chatbot:
                         return await self.get_chat_response("", True)
                     else:
                         not_complete = "\nis_complete: False"
-                elif is_continue:
+                else:
                     if response["message"].get("end_turn"):
                         response = await self.get_conversasion_message_response(
                             self.conversation_id, self.parent_id
                         )
-                msg = "".join(response["message"]["content"]["parts"])
+                if isinstance(response, str):
+                    return response
+                msg = "".join([text for text in response["message"]["content"]["parts"] if isinstance(text, str)])
+                images = [image["asset_pointer"] for image in response["message"]["content"]["parts"] if not isinstance(image, str)]
+                logger.info(response)
+                logger.info(msg)
+                logger.info(images)
                 if self.metadata:
                     msg += "\n---"
                     msg += (
@@ -232,7 +246,13 @@ class Chatbot:
                     msg += not_complete
                     if is_continue:
                         msg += "\nauto_continue: True"
-                return msg
+                if images:
+                    return {
+                        "message": msg,
+                        "images": images
+                    }
+                else:
+                    return msg
 
     async def edit_title(self, title: str) -> bool:
         async with httpx.AsyncClient(
@@ -296,6 +316,26 @@ class Chatbot:
             )
             return response.json()
 
+    async def get_image_url_with_id(self, image_id: str):
+        async with httpx.AsyncClient(
+            headers=self.headers,
+            proxies=self.proxies,
+            timeout=self.timeout,
+        ) as client:
+            response = await client.get(
+                urljoin(self.api_url, f"backend-api/files/{image_id}/download")
+            )
+            try:
+                if response.status_code == 200:
+                    resp_json = response.json()
+                    return resp_json["download_url"]
+                else:
+                    return False
+            except Exception as e:
+                logger.opt(colors=True, exception=e).error(
+                    f"获取图片失败: <r>HTTP{response.status_code}</r> {response.text}"
+                )
+
     async def get_conversasion_message_response(
         self, conversation_id: str, message_id: str
     ):
@@ -306,11 +346,14 @@ class Chatbot:
         if messages := conversation.get("mapping"):
             resp = messages[message_id]
             message = messages[resp["parent"]]
-            while message["message"]["author"]["role"] == "assistant":
-                resp["message"]["content"]["parts"] = (
-                    message["message"]["content"]["parts"]
-                    + resp["message"]["content"]["parts"]
-                )
+            while message["message"]["author"]["role"] == "assistant" or message["message"]["author"]["role"] == "tool":
+                logger.info(message)
+                content_type = message["message"]["content"]["content_type"]
+                if message["message"]["author"]["role"] == "tool":
+                    if content_type == "multimodal_text":
+                        resp["message"]["content"]["parts"].extend(message["message"]["content"]["parts"])
+                elif content_type == "text":
+                    resp["message"]["content"]["parts"].extend(message["message"]["content"]["parts"])
                 message = messages[message["parent"]]
             resp["conversation_id"] = conversation_id
             return resp
