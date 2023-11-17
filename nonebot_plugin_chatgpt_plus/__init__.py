@@ -18,13 +18,9 @@ from .config import config
 from .utils import Session, cooldow_checker, create_matcher, single_run_locker, lockers
 from .data import setting
 
-require("nonebot_plugin_apscheduler")
-
 from nonebot_plugin_apscheduler import scheduler
 
 if config.chatgpt_image:
-    require("nonebot_plugin_htmlrender")
-
     from nonebot_plugin_htmlrender import md_to_pic
 
 
@@ -123,6 +119,8 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
         model = "gpt-4-gizmo"
     elif cmd.startswith("gpt4b"):
         model = "gpt-4-browsing"
+    elif cmd.startswith("gpt4p"):
+        model = "gpt-4-plugins"
     elif cmd.startswith("gpt4"):
         model = "gpt-4"
     elif cmd.startswith("gpt3"):
