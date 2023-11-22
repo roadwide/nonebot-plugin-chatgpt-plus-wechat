@@ -98,7 +98,32 @@ def check_purview(event: MessageEvent) -> bool:
     parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()]
 )
 async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
+    img_url: str = ""
+    img_info: dict = {}
+    if event.reply:
+        img_url = event.reply.message
+    for seg in event.message:
+        if seg.type == "image":
+            img_url = seg.data["url"].strip()
+    if isinstance(img_url, Message):
+        for seg in img_url:
+            if seg.type == "image":
+                img_url = seg.data["url"].strip()
+    if isinstance(img_url, MessageSegment):
+        img_url = img_url.data["url"]
     lockers[event.user_id] = True
+    if img_url:
+        try:
+            img_info = await chat_bot.upload_image_url(url=img_url)
+            if not img_info:
+                await matcher.finish("图片上传失败", reply_message=True)
+            logger.debug(f"ChatGPT image upload success: {img_info}")
+        except Exception as e:
+            error = f"{type(e).__name__}: {e}"
+            logger.opt(exception=e).error(f"ChatGPT request failed: {error}")
+            await matcher.finish(f"图片上传失败\n错误信息: {error}", reply_message=True)
+        finally:
+            lockers[event.user_id] = False
     message = _command_arg(state) or event.get_message()
     text = message.extract_plain_text().strip()
     if start := _command_start(state):
@@ -146,24 +171,24 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
             msg_id = msg_id.get("message_id")
         msg = await chat_bot(
             **cvst, played_name=played_name, model=model
-        ).get_chat_response(text)
+        ).get_chat_response(text, image_info=img_info)
         if (
             msg == "token失效，请重新设置token"
             and chat_bot.session_token != config.chatgpt_session_token
         ):
             chat_bot.session_token = config.chatgpt_session_token
-            msg = await chat_bot(**cvst, played_name=played_name, model=model).get_chat_response(
-                text
-            )
+            msg = await chat_bot(
+                **cvst, played_name=played_name, model=model
+            ).get_chat_response(text, image_info=img_info)
         elif msg == "会话不存在":
             if config.chatgpt_auto_refresh:
                 has_title = False
                 cvst["conversation_id"].append(None)
                 cvst["parent_id"].append(chat_bot.id)
                 await matcher.send("会话不存在，已自动刷新对话，等待响应...", reply_message=True)
-                msg = await chat_bot(**cvst, played_name=played_name, model=model).get_chat_response(
-                    text
-                )
+                msg = await chat_bot(
+                    **cvst, played_name=played_name, model=model
+                ).get_chat_response(text, image_info=img_info)
             else:
                 msg += ",请刷新会话"
     except Exception as e:
