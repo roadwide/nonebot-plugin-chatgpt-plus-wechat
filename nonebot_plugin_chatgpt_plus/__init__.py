@@ -1,4 +1,4 @@
-﻿from nonebot import on_command, require
+﻿from nonebot import on_command, require, get_bot
 from nonebot.adapters.onebot.v12 import (
     Bot,
     GroupMessageEvent,
@@ -88,10 +88,13 @@ session = Session(config.chatgpt_scope)
 
 
 async def check_purview(event: MessageEvent) -> bool:
+    # 获取当前 Bot 实例
+    bot = get_bot()
+    is_superuser = await SUPERUSER(bot, event)
     return not (
         isinstance(event, GroupMessageEvent)
         and config.chatgpt_scope == "public"
-        and not await SUPERUSER(event)
+        and not is_superuser
     )
 
 def get_id(event: MessageEvent) -> str:
@@ -226,7 +229,7 @@ refresh = on_command("刷新对话", aliases={"刷新会话"}, block=True, rule=
 
 @refresh.handle()
 async def refresh_conversation(event: MessageEvent) -> None:
-    if not check_purview(event):
+    if not await check_purview(event):
         await import_.finish("当前为公共会话模式, 仅支持群管理操作")
     session[event]["conversation_id"].append(None)
     session[event]["parent_id"].append(chat_bot.id)
@@ -256,7 +259,7 @@ import_ = on_command(
 
 @import_.handle()
 async def import_conversation(event: MessageEvent, arg: Message = CommandArg()) -> None:
-    if not check_purview(event):
+    if not await check_purview(event):
         await import_.finish("当前为公共会话模式, 仅支持群管理操作")
     args = arg.extract_plain_text().strip().split()
     if not args:
@@ -272,7 +275,7 @@ save = on_command("保存对话", aliases={"保存会话"}, block=True, rule=to_
 
 @save.handle()
 async def save_conversation(event: MessageEvent, arg: Message = CommandArg()) -> None:
-    if not check_purview(event):
+    if not await check_purview(event):
         await save.finish("当前为公共会话模式, 仅支持群管理操作")
     if session[event]:
         name = arg.extract_plain_text().strip()
@@ -300,7 +303,7 @@ switch = on_command("切换对话", aliases={"切换会话"}, block=True, rule=t
 
 @switch.handle()
 async def switch_conversation(event: MessageEvent, arg: Message = CommandArg()) -> None:
-    if not check_purview(event):
+    if not await check_purview(event):
         await switch.finish("当前为公共会话模式, 仅支持群管理操作")
     name = arg.extract_plain_text().strip()
     if not name:
