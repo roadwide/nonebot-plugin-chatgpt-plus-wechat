@@ -398,12 +398,12 @@ class Chatbot:
             timeout=self.timeout,
         ) as client:
             response = await client.post(
-                "https://chat.loli.vet/api/auth/login",
+                urljoin(self.api_url, "api/auth/login"),
                 headers={"User-Agent": self.user_agent},
-                files={"username": self.account, "password": self.password},
+                data={"username": self.account, "password": self.password}
             )
             if response.status_code == 200:
-                session_token = response.cookies.get(SESSION_TOKEN_KEY)
+                session_token = response.json()["session_token"]
                 self.session_token = session_token
                 self.auto_auth = False
                 logger.opt(colors=True).info("ChatGPT 登录成功！")
