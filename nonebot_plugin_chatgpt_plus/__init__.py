@@ -1,7 +1,8 @@
-from nonebot import on_command, require
-from nonebot.adapters.onebot.v11 import (
+﻿from nonebot import on_command, require
+from nonebot.adapters.onebot.v12 import (
     Bot,
     GroupMessageEvent,
+    PrivateMessageEvent,
     Message,
     MessageEvent,
     MessageSegment,
@@ -93,41 +94,29 @@ def check_purview(event: MessageEvent) -> bool:
         and event.sender.role == "member"
     )
 
+def get_id(event: MessageEvent) -> str:
+    """获取会话id"""
+    if isinstance(event, GroupMessageEvent):
+        if config.chatgpt_scope == "public":
+            id = f"{event.group_id}-share"
+        else:
+            id = f"{event.group_id}-{event.user_id}"
+    elif isinstance(event, PrivateMessageEvent):
+        id = str(event.user_id)
+    else:
+        id = ""
+    # 记录id
+    #if id not in var.session_data:
+    #    var.session_data[id] = ["", "", "默认"]
+    return id
 
 @matcher.handle(
     parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()]
 )
 async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
-    img_url: str = ""
-    img_info: dict = {}
-    if event.reply:
-        img_url = event.reply.message
-    for seg in event.message:
-        if seg.type == "image":
-            img_url = seg.data["url"].strip()
-    if isinstance(img_url, Message):
-        for seg in img_url:
-            if seg.type == "image":
-                img_url = seg.data["url"].strip()
-    if isinstance(img_url, MessageSegment):
-        img_url = img_url.data["url"]
     lockers[event.user_id] = True
-    if img_url:
-        try:
-            img_info = await chat_bot.upload_image_url(url=img_url)
-            if not img_info:
-                await matcher.finish("图片上传失败", reply_message=True)
-            logger.debug(f"ChatGPT image upload success: {img_info}")
-        except Exception as e:
-            error = f"{type(e).__name__}: {e}"
-            logger.opt(exception=e).error(f"ChatGPT request failed: {error}")
-            await matcher.finish(f"图片上传失败\n错误信息: {error}", reply_message=True)
-        finally:
-            lockers[event.user_id] = False
     message = _command_arg(state) or event.get_message()
     text = message.extract_plain_text().strip()
-    if start := _command_start(state):
-        text = text[len(start) :]
     has_title = True
     played_name = config.chatgpt_default_preset
     if not chat_bot.presets.get(played_name):
@@ -167,35 +156,35 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
             msg = "收到请求，等待响应..."
             if not has_title:
                 msg += f"\n首次请求，人格设定: {played_name if played_name else '无'}"
-            msg_id = await matcher.send(msg, reply_message=True)
-            msg_id = msg_id.get("message_id")
+            await matcher.send(msg, reply_message=False)
+            msg_id = get_id(event)
         msg = await chat_bot(
             **cvst, played_name=played_name, model=model
-        ).get_chat_response(text, image_info=img_info)
+        ).get_chat_response(text)
         if (
             msg == "token失效，请重新设置token"
             and chat_bot.session_token != config.chatgpt_session_token
         ):
             chat_bot.session_token = config.chatgpt_session_token
-            msg = await chat_bot(
-                **cvst, played_name=played_name, model=model
-            ).get_chat_response(text, image_info=img_info)
+            msg = await chat_bot(**cvst, played_name=played_name, model=model).get_chat_response(
+                text
+            )
         elif msg == "会话不存在":
             if config.chatgpt_auto_refresh:
                 has_title = False
                 cvst["conversation_id"].append(None)
                 cvst["parent_id"].append(chat_bot.id)
-                await matcher.send("会话不存在，已自动刷新对话，等待响应...", reply_message=True)
-                msg = await chat_bot(
-                    **cvst, played_name=played_name, model=model
-                ).get_chat_response(text, image_info=img_info)
+                await matcher.send("会话不存在，已自动刷新对话，等待响应...", reply_message=False)
+                msg = await chat_bot(**cvst, played_name=played_name, model=model).get_chat_response(
+                    text
+                )
             else:
                 msg += ",请刷新会话"
     except Exception as e:
         error = f"{type(e).__name__}: {e}"
         logger.opt(exception=e).error(f"ChatGPT request failed: {error}")
         await matcher.finish(
-            f"请求 ChatGPT 服务器时出现问题，请稍后再试\n错误信息: {error}", reply_message=True
+            f"请求 ChatGPT 服务器时出现问题，请稍后再试\n错误信息: {error}", reply_message=False
         )
     finally:
         lockers[event.user_id] = False
@@ -213,7 +202,7 @@ async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
             msg += "\n```"
         img = await md_to_pic(msg, width=config.chatgpt_image_width)
         msg = MessageSegment.image(img)
-    await matcher.send(msg, reply_message=True)
+    await matcher.send(msg, reply_message=False)
     session[event] = chat_bot.conversation_id, chat_bot.parent_id
     if not has_title:
         await chat_bot(**session[event]).edit_title(session.id(event=event))
@@ -254,10 +243,10 @@ async def export_conversation(event: MessageEvent) -> None:
             f"已成功导出会话:\n"
             f"会话ID: {cvst['conversation_id'][-1]}\n"
             f"父消息ID: {cvst['parent_id'][-1]}",
-            reply_message=True,
+            reply_message=False,
         )
     else:
-        await export.finish("你还没有任何会话记录", reply_message=True)
+        await export.finish("你还没有任何会话记录", reply_message=False)
 
 
 import_ = on_command(
@@ -271,11 +260,11 @@ async def import_conversation(event: MessageEvent, arg: Message = CommandArg()) 
         await import_.finish("当前为公共会话模式, 仅支持群管理操作")
     args = arg.extract_plain_text().strip().split()
     if not args:
-        await import_.finish("至少需要提供会话ID", reply_message=True)
+        await import_.finish("至少需要提供会话ID", reply_message=False)
     if len(args) > 2:
-        await import_.finish("提供的参数格式不正确", reply_message=True)
+        await import_.finish("提供的参数格式不正确", reply_message=False)
     session[event] = args.pop(0), args[0] if args else None
-    await import_.send("已成功导入会话", reply_message=True)
+    await import_.send("已成功导入会话", reply_message=False)
 
 
 save = on_command("保存对话", aliases={"保存会话"}, block=True, rule=to_me(), priority=1)
@@ -289,12 +278,12 @@ async def save_conversation(event: MessageEvent, arg: Message = CommandArg()) ->
         name = arg.extract_plain_text().strip()
         if not name:
             session.save_sessions()
-            await save.finish("已保存所有会话记录", reply_message=True)
+            await save.finish("已保存所有会话记录", reply_message=False)
         else:
             session.save(name, event)
-            await save.send(f"已将当前会话保存为: {name}", reply_message=True)
+            await save.send(f"已将当前会话保存为: {name}", reply_message=False)
     else:
-        await save.finish("你还没有任何会话记录", reply_message=True)
+        await save.finish("你还没有任何会话记录", reply_message=False)
 
 
 check = on_command("查看对话", aliases={"查看会话"}, block=True, rule=to_me(), priority=1)
@@ -303,7 +292,7 @@ check = on_command("查看对话", aliases={"查看会话"}, block=True, rule=to
 @check.handle()
 async def check_conversation(event: MessageEvent) -> None:
     name_list = "\n".join(list(session.find(event).keys()))
-    await check.send(f"已保存的会话有:\n{name_list}", reply_message=True)
+    await check.send(f"已保存的会话有:\n{name_list}", reply_message=False)
 
 
 switch = on_command("切换对话", aliases={"切换会话"}, block=True, rule=to_me(), priority=1)
@@ -315,12 +304,12 @@ async def switch_conversation(event: MessageEvent, arg: Message = CommandArg()) 
         await switch.finish("当前为公共会话模式, 仅支持群管理操作")
     name = arg.extract_plain_text().strip()
     if not name:
-        await save.finish("请输入会话名称", reply_message=True)
+        await save.finish("请输入会话名称", reply_message=False)
     try:
         session[event] = session.find(event)[name]
-        await switch.send(f"已切换到会话: {name}", reply_message=True)
+        await switch.send(f"已切换到会话: {name}", reply_message=False)
     except KeyError:
-        await switch.send(f"找不到会话: {name}", reply_message=True)
+        await switch.send(f"找不到会话: {name}", reply_message=False)
 
 
 refresh = on_command(
@@ -349,7 +338,7 @@ clear = on_command(
 async def clear_session() -> None:
     session.clear()
     session.save_sessions()
-    await clear.finish("已清除所有会话...", reply_message=True)
+    await clear.finish("已清除所有会话...", reply_message=False)
 
 
 rollback = on_command("回滚对话", aliases={"回滚会话"}, block=True, rule=to_me(), priority=1)
@@ -363,16 +352,16 @@ async def rollback_conversation(event: MessageEvent, arg: Message = CommandArg()
         if session[event]:
             count = session.count(event)
             if num > count:
-                await rollback.finish(f"历史会话数不足，当前历史会话数为{count}", reply_message=True)
+                await rollback.finish(f"历史会话数不足，当前历史会话数为{count}", reply_message=False)
             else:
                 for _ in range(num):
                     session.pop(event)
-                await rollback.send(f"已成功回滚{num}条会话", reply_message=True)
+                await rollback.send(f"已成功回滚{num}条会话", reply_message=False)
         else:
-            await save.finish("你还没有任何会话记录", reply_message=True)
+            await save.finish("你还没有任何会话记录", reply_message=False)
     else:
         await rollback.finish(
-            f"请输入有效的数字，最大回滚数为{config.chatgpt_max_rollback}", reply_message=True
+            f"请输入有效的数字，最大回滚数为{config.chatgpt_max_rollback}", reply_message=False
         )
 
 
@@ -383,17 +372,17 @@ set_preset = on_command("人格设定", aliases={"设置人格"}, block=True, ru
 async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()):
     args = arg.extract_plain_text().strip().split()
     if not args:
-        await set_preset.finish("至少需要提供人格名称", reply_message=True)
+        await set_preset.finish("至少需要提供人格名称", reply_message=False)
     if len(args) >= 2:
         if event.get_user_id() not in bot.config.superusers:
-            await set_preset.finish("权限不足", reply_message=True)
+            await set_preset.finish("权限不足", reply_message=False)
         else:
             setting.presets[args[0]] = "\n".join(args[1:])
-            await set_preset.finish("人格设定修改成功: " + args[0], reply_message=True)
+            await set_preset.finish("人格设定修改成功: " + args[0], reply_message=False)
     else:
         if session[event]:
             if session[event]["conversation_id"][-1]:
-                await set_preset.finish("已存在会话，请刷新会话后设定。", reply_message=True)
+                await set_preset.finish("已存在会话，请刷新会话后设定。", reply_message=False)
         try:
             msg = await chat_bot(
                 **session[event], played_name=args[0]
@@ -403,9 +392,9 @@ async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()
             error = f"{type(e).__name__}: {e}"
             logger.opt(exception=e).error(f"ChatGPT request failed: {error}")
             await set_preset.finish(
-                f"请求 ChatGPT 服务器时出现问题，请稍后再试\n错误信息: {error}", reply_message=True
+                f"请求 ChatGPT 服务器时出现问题，请稍后再试\n错误信息: {error}", reply_message=False
             )
-        await set_preset.send(msg, reply_message=True)
+        await set_preset.send(msg, reply_message=False)
         await chat_bot(**session[event]).edit_title(session.id(event=event))
 
 
@@ -418,12 +407,12 @@ async def query_preset(bot: Bot, event: MessageEvent, arg: Message = CommandArg(
     if not preset:
         msg = "人格如下：\n"
         msg += "、".join(setting.presets.keys())
-        await query.finish(msg, reply_message=True)
+        await query.finish(msg, reply_message=False)
     if setting.presets.get(preset):
         if event.get_user_id() not in bot.config.superusers:
-            await query.finish("权限不足", reply_message=True)
+            await query.finish("权限不足", reply_message=False)
         await query.finish(
-            f"名称：{preset}\n人格设定：{setting.presets.get(preset)}", reply_message=True
+            f"名称：{preset}\n人格设定：{setting.presets.get(preset)}", reply_message=False
         )
     else:
-        await query.finish("人格设定不存在", reply_message=True)
+        await query.finish("人格设定不存在", reply_message=False)

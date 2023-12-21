@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from collections import defaultdict, deque
 from pathlib import Path
@@ -15,7 +15,7 @@ from typing import (
 )
 
 from nonebot import on_command, on_message
-from nonebot.adapters.onebot.v11 import GROUP, GroupMessageEvent, MessageEvent
+from nonebot.adapters.onebot.v12 import GROUP, GroupMessageEvent, MessageEvent
 from nonebot.matcher import Matcher
 from nonebot.params import Depends
 from nonebot.rule import to_me
@@ -44,12 +44,13 @@ def cooldow_checker(cd_time: int) -> Any:
         matcher: Matcher, event: MessageEvent
     ) -> AsyncGenerator[None, None]:
         cooldown_time = cooldown[event.user_id] + cd_time
-        if event.time < cooldown_time:
+        event_time_int = int(event.time.timestamp())
+        if event_time_int < cooldown_time:
             await matcher.finish(
-                f"ChatGPT 冷却中，剩余 {cooldown_time - event.time} 秒", at_sender=True
+                f"ChatGPT 冷却中，剩余 {cooldown_time - event_time_int} 秒", at_sender=True
             )
         yield
-        cooldown[event.user_id] = event.time
+        cooldown[event.user_id] = event_time_int
 
     return Depends(check_cooldown)
 
@@ -61,7 +62,7 @@ def single_run_locker() -> Any:
         lockers[event.user_id] = lockers[event.user_id]
         if lockers[event.user_id]:
             await matcher.finish(
-                "我知道你很急，但你先别急", reply_message=True
+                "我知道你很急，但你先别急", reply_message=False
             )
         yield
 
