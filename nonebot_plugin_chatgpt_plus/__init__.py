@@ -87,11 +87,11 @@ matcher = create_matcher(
 session = Session(config.chatgpt_scope)
 
 
-def check_purview(event: MessageEvent) -> bool:
+async def check_purview(event: MessageEvent) -> bool:
     return not (
         isinstance(event, GroupMessageEvent)
         and config.chatgpt_scope == "public"
-        and event.sender.role == "member"
+        and not await SUPERUSER(event)
     )
 
 def get_id(event: MessageEvent) -> str:
