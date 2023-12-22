@@ -384,6 +384,7 @@ async def set_preset_(bot: Bot, event: MessageEvent, arg: Message = CommandArg()
             await set_preset.finish("权限不足", reply_message=False)
         else:
             setting.presets[args[0]] = "\n".join(args[1:])
+            setting.save()
             await set_preset.finish("人格设定修改成功: " + args[0], reply_message=False)
     else:
         if session[event]:
@@ -422,3 +423,22 @@ async def query_preset(bot: Bot, event: MessageEvent, arg: Message = CommandArg(
         )
     else:
         await query.finish("人格设定不存在", reply_message=False)
+
+
+del_preset = on_command("删除人格", aliases={"del_preset"}, block=True, rule=to_me(), priority=1)
+
+@del_preset.handle()
+async def delete_preset(bot: Bot, event: MessageEvent, arg: Message = CommandArg()):
+    preset_name = arg.extract_plain_text().strip()
+    if not preset_name:
+        await del_preset.finish("请输入要删除的人格名", reply_message=False)
+    if setting.presets.get(preset_name):
+        if event.get_user_id() not in bot.config.superusers:
+            await del_preset.finish("权限不足", reply_message=False)
+        del setting.presets[preset_name]
+        setting.save()
+        await del_preset.finish(
+            f"已删除人格：{preset_name}", reply_message=False
+        )
+    else:
+        await del_preset.finish("人格设定不存在", reply_message=False)
