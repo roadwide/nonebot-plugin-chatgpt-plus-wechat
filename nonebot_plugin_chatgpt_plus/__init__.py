@@ -1,4 +1,4 @@
-﻿from nonebot import on_command, require, get_bot
+﻿from nonebot import on_command, get_bot
 from nonebot.adapters.onebot.v12 import (
     Bot,
     GroupMessageEvent,
@@ -10,7 +10,7 @@ from nonebot.adapters.onebot.v12 import (
 from nonebot.log import logger
 from nonebot.plugin import PluginMetadata
 from nonebot.permission import SUPERUSER
-from nonebot.params import CommandArg, _command_arg, _command_start
+from nonebot.params import CommandArg, _command_arg
 from nonebot.rule import to_me
 from nonebot.typing import T_State
 
@@ -117,6 +117,9 @@ def get_id(event: MessageEvent) -> str:
     parameterless=[cooldow_checker(config.chatgpt_cd_time), single_run_locker()]
 )
 async def ai_chat(bot: Bot, event: MessageEvent, state: T_State) -> None:
+    # 当on_message时屏蔽/开头的消息，防止其他插件命令触发机器人
+    if not config.chatgpt_command  and event.get_message().extract_plain_text().startswith('/'):
+        return
     lockers[event.user_id] = True
     message = _command_arg(state) or event.get_message()
     text = message.extract_plain_text().strip()
